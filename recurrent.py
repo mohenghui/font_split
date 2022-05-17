@@ -69,5 +69,5 @@ class Recurrent:
 
 
 if __name__ == '__main__':
-    recurrent = Recurrent(["爱"])
+    recurrent = Recurrent(["卧"])
     recurrent.main()

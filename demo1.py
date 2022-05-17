@@ -5,9 +5,12 @@ import numpy as np
 import imutils
 import math
 import os
+from shapely import geometry
+
 delta = {(0, 0): (-1, -1), (0, 1): (-1, 0), (0, 2): (-1, 1),
          (1, 0): (0, -1), (1, 1): (0, 0), (1, 2): (0, 1),
          (2, 0): (1, -1), (2, 1): (1, 0), (2, 2): (1, 1)}
+
 
 class Font(object):
     def __init__(self):
@@ -29,8 +32,9 @@ class Font(object):
         if not os.path.isdir(self.save_txt_dir):
             os.makedirs(self.save_txt_dir)
         self.f = open(self.save_txt_dir + self.object_name[self.index] + self.object_type, "w")
+
     # 二值化
-    def threshold_image(self,image):
+    def threshold_image(self, image):
         ret, threshold = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return threshold
 
@@ -83,7 +87,7 @@ class Font(object):
     #     def denoising(image):
     #     pass
 
-    def getSkeleton(self,image):
+    def getSkeleton(self, image):
         # Applies a skeletonization algorithm, thus, transforming all the strokes inside the sketch into one pixel width lines
         # threshold = threshold_image(image)
         image = cv2.GaussianBlur(image, (3, 3), 0)
@@ -97,8 +101,7 @@ class Font(object):
         skeleton = img_as_ubyte(skeleton)  # 转换成8bit
         return skeleton
 
-
-    def draw(self,contours, image, x0=0, y0=0):
+    def draw(self, contours, image, x0=0, y0=0):
         rect_contours = []
         for item in contours:
             # cv2.boundingRect用一个最小的矩形，把找到的形状包起来
@@ -127,12 +130,13 @@ class Font(object):
             cv2.rectangle(image, (rect_contours[i][0], rect_contours[i][1]), (rect_contours[i][2], rect_contours[i][3]),
                           255, 1)
 
-            cv2.putText(image, str(i), (rect_contours[i][0], rect_contours[i][1]), cv2.FONT_HERSHEY_COMPLEX, 0.5, 255, 1)
+            cv2.putText(image, str(i), (rect_contours[i][0], rect_contours[i][1]), cv2.FONT_HERSHEY_COMPLEX, 0.5, 255,
+                        1)
         cv2.imshow("draw", image)
         return rect_contours
 
-
-    def findContours(self,image, Min_Area=10, Max_Area=8000):
+    def findContours(self, image, Min_Area=10, Max_Area=8000):
+        blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
         contours = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # 寻找轮廓
         contours = contours[1] if imutils.is_cv3() else contours[0]
         temp_contours = []
@@ -144,10 +148,12 @@ class Font(object):
             # print("面积", contoursize)
             if contoursize >= Min_Area and contoursize < Max_Area:
                 temp_contours.append(contour)
+            # else:
+            #     image[rect[1]:rect[1]+rect[3],rect[0]:rect[0]+rect[2]]=0
+        cv2.imshow("donie", image)
         return temp_contours
 
-
-    def strokeSplit(self,image):
+    def strokeSplit(self, image):
         draw_image = image.copy()
         contours = self.findContours(image)
         sorted_contours = self.draw(contours, draw_image)
@@ -155,11 +161,155 @@ class Font(object):
         # cv2.imshow("draw",draw_image)
         return sorted_contours
 
-    def txt_add_point(self,px, py):
+    def GetAngle(self,point1,point2, point3):
+        """
+        计算两条线段之间的夹⾓
+            :param line1:
+            :param line2:
+            :return:
+            """
+        dx1 = point2[0] - point1[0]
+        dy1 = point2[1] - point1[1]
+        dx2 = point2[0] - point3[0]
+        dy2 = point2[1] - point3[1]
+        angle1 = math.atan2(dy1, dx1)
+        angle1 = int(angle1 * 180 / math.pi)
+        # print(angle1)
+        angle2 = math.atan2(dy2, dx2)
+        angle2 = int(angle2 * 180 / math.pi)
+        # print(angle2)
+        if angle1 * angle2 >= 0:
+            insideAngle = abs(angle1 - angle2)
+        else:
+            insideAngle = abs(angle1) + abs(angle2)
+        if insideAngle > 180:
+            insideAngle = 360 - insideAngle
+        insideAngle = insideAngle % 180
+        return insideAngle
+
+
+    def if_inPoly(self, polygon, Points):
+        line = geometry.LineString(polygon)
+        point = geometry.Point(Points)
+        polygon = geometry.Polygon(line)
+        return polygon.contains(point)
+
+    def is_inPoly(self, contour, point):
+        # return True if contour[1]<=point[0]<=contour[3] and contour[0]<=point[1]<=contour[2] else False
+        return True if contour[0]-1 <= point[0] <= contour[2]+1 and contour[1]-1 <= point[1] <= contour[3]+1 else False
+
+    def txt_add_point(self, px, py):
         add_point = '{},{}\n'.format(int(px), int(py))
         self.f.write(add_point)
-    def strokeGet(self,contours, image):
-        image_neighbour = image.copy()
+    def distanceArray(self,point_list1,point_list2):
+        minDistance=float('inf')
+        minPoint1,minPoint2=None,None
+        print(point_list1,point_list2)
+        for i in point_list1:
+            # print(i)
+            for j in point_list2:
+                # if i==j:continue
+                k=self.cal_distance(i,j)
+                if minDistance>k:
+                    minPoint1,minPoint2=i,j
+                    minDistance=k
+        return minPoint1,minPoint2
+    def nextPoint(self,point_list1,point_list2):
+        if sum(point_list1[:4])>=sum(point_list2[:4]):
+            return point_list2,point_list1
+        else:return point_list1,point_list2
+    def strokeGet2(self, contours, pointlist, image):
+        blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
+        # sum_int=0
+        k_contours = []
+
+        for contour in contours:
+            image_neighbour = image[contour[1]:contour[3], contour[0]:contour[2]].copy()
+            visit = []
+            if np.sum(image_neighbour) > 0:
+                for point in pointlist:
+                    # print(point)
+                    # if self.if_inPoly([(contour[0],contour[1]),(contour[0],contour[3]),
+                    #                   (contour[2],contour[3]),(contour[2],contour[1])],point):
+                    if self.is_inPoly(contour, point):
+                        # print(contour, point)
+                        # print("yes")
+                        # k_contours.append([contour,self.])
+                        visit.append(point)
+            if len(visit)==2:
+                # self.GetAngle(visit[1],[visit[0][0]+,visit[0][1]],visit[0])
+                k_contours.append([contour,self.cal_k(visit[0],visit[1])])
+            else:
+                k_contours.append([contour,self.cal_k(visit[0], visit[1])])#暂时这样
+        k_contours.sort(key=lambda x:x[1])
+        # print(k_contours)
+        final_contours=[]
+        for i in range(len(k_contours)):
+            for j in range(i,len(k_contours)):
+                # print(self.cal_distance(k_contours[i],))
+                # print(self.cal_distance(k_contours[i],
+                #                         self.distanceArray([(k_contours[i][:2])],[(k_contours[i][2:4])])))
+                # print(k_contours[i][:2])
+                print(self.distanceArray([k_contours[i][0][:2],k_contours[i][0][2:4]],[k_contours[j][0][:2],k_contours[j][0][2:4]]))
+
+        # print(k_contours)
+            # for v in
+                    # print(len(visit))
+                # preX = preY = k = firstX = firstY = None
+                # for j in range(contour[1], contour[3]):
+                #     for i in range(contour[0], contour[2]):
+                #         if image_neighbour[j - contour[1], i - contour[0]] == 255 :
+                #             k_contours.append()
+        pass
+
+        #         preX = preY = k = firstX = firstY = None
+        #         for j in range(contour[1], contour[3]):
+        #             for i in range(contour[0], contour[2]):
+        #                 if image_neighbour[j - contour[1], i - contour[0]] == 255:
+        #                     if preX is None and preY is None:
+        #                         preX, preY = i, j
+        #                         firstX, firstY = i, j
+        #                         blank_image[j, i] = 255
+        #                         image_neighbour[j - contour[1], i - contour[0]] = 0
+        #                         self.txt_add_point(0, 0)
+        #                         self.txt_add_point(i, j)
+        #                         cv2.imshow("1", blank_image)
+        #                         continue
+        #                     # print(cal_distance([preX,preY],[i,j]))
+        #                     if k is None and (preX is not None and preY is not None):
+        #                         k = self.cal_k([i - firstX, j - firstY], [0, 0])
+        #                         preX, preY = i, j
+        #                         print([i - firstX, j - firstY])
+        #                         print("原来的斜率", k)
+        #                     elif self.cal_distance([preX, preY], [i, j]) <= 5:
+        #                         # if cal_k([preX, preY], [i, j]):
+        #                         neighbourhood = image_neighbour[j - 1 - contour[1]: j + 2 - contour[1],
+        #                                         i - 1 - contour[0]: i + 2 - contour[0]]
+        #                         print("进来")
+        #                         print(neighbourhood)
+        #                         neighbours = np.argwhere(neighbourhood)
+        #                         # print(neighbours )
+        #                         print("计算的斜率", self.cal_k([preX - firstX, preY - firstY], [i - firstX, j - firstY]))
+        #                         if len(neighbours) == 1:
+        #                             image_neighbour[j - contour[1], i - contour[0]] = 0
+        #                         elif len(neighbours) >= 1 and abs(self.cal_k([preX - firstX, preY - firstY],
+        #                                                                      [i - firstX,
+        #                                                                       j - firstY]) - k) <= k * 0.10 + 1000:
+        #                             blank_image[j, i] = 255
+        #                             image_neighbour[j - contour[1], i - contour[0]] = 0
+        #                             cv2.imshow("1", blank_image)
+        #                             # cv2.waitKey(0)
+        #                             preX, preY = i, j
+        #                             self.txt_add_point(i, j)
+        #                     # neighbourhood = image[j - 1: j + 2, i - 1: i + 2]
+        #                     # neighbours = np.argwhere(neighbourhood)
+        #                     # blank_image[j,i]=255
+        #                     # cv2.imshow("1",blank_image)
+        #                     # cv2.waitKey(0)
+        # self.f.close()
+
+    def strokeGet(self, contours, image):
+        # image_neighbour = image.copy()
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
         # sum_int=0
         for contour in contours:
@@ -174,57 +324,68 @@ class Font(object):
                                 firstX, firstY = i, j
                                 blank_image[j, i] = 255
                                 image_neighbour[j - contour[1], i - contour[0]] = 0
-                                self.txt_add_point(0,0)
-                                self.txt_add_point(i,j)
+                                self.txt_add_point(0, 0)
+                                self.txt_add_point(i, j)
                                 cv2.imshow("1", blank_image)
                                 continue
                             # print(cal_distance([preX,preY],[i,j]))
                             if k is None and (preX is not None and preY is not None):
-                                k = self.cal_k([i-firstX, j-firstY], [0, 0])
-                                preX,preY=i,j
-                                print([i-firstX, j-firstY])
-                                print("原来的斜率",k)
+                                k = self.cal_k([i - firstX, j - firstY], [0, 0])
+                                preX, preY = i, j
+                                print([i - firstX, j - firstY])
+                                print("原来的斜率", k)
                             elif self.cal_distance([preX, preY], [i, j]) <= 5:
                                 # if cal_k([preX, preY], [i, j]):
-                                neighbourhood=image_neighbour[j - 1 - contour[1]: j + 2 - contour[1], i - 1 - contour[0] : i + 2 - contour[0]]
+                                neighbourhood = image_neighbour[j - 1 - contour[1]: j + 2 - contour[1],
+                                                i - 1 - contour[0]: i + 2 - contour[0]]
                                 print("进来")
                                 print(neighbourhood)
-                                neighbours= np.argwhere(neighbourhood)
+                                neighbours = np.argwhere(neighbourhood)
                                 # print(neighbours )
-                                print("计算的斜率",self.cal_k([preX-firstX, preY-firstY], [i-firstX, j-firstY]))
-                                if len(neighbours)==1:
+                                print("计算的斜率", self.cal_k([preX - firstX, preY - firstY], [i - firstX, j - firstY]))
+                                if len(neighbours) == 1:
                                     image_neighbour[j - contour[1], i - contour[0]] = 0
-                                elif len(neighbours)>=1 and abs(self.cal_k([preX-firstX, preY-firstY], [i-firstX, j-firstY])-k)<=k*0.10+1000:
+                                elif len(neighbours) >= 1 and abs(self.cal_k([preX - firstX, preY - firstY],
+                                                                             [i - firstX,
+                                                                              j - firstY]) - k) <= k * 0.10 + 1000:
                                     blank_image[j, i] = 255
                                     image_neighbour[j - contour[1], i - contour[0]] = 0
                                     cv2.imshow("1", blank_image)
                                     # cv2.waitKey(0)
                                     preX, preY = i, j
-                                    self.txt_add_point(i,j)
+                                    self.txt_add_point(i, j)
                             # neighbourhood = image[j - 1: j + 2, i - 1: i + 2]
                             # neighbours = np.argwhere(neighbourhood)
                             # blank_image[j,i]=255
                             # cv2.imshow("1",blank_image)
                             # cv2.waitKey(0)
         self.f.close()
-    def jiaodian(self,image):
-        image = np.float32(image)
-        dst = cv2.cornerHarris(image, 2, 3, 0.04)
+
+    def jiaodian(self, image):
+        contour = []
+        gray = np.float32(image)
+        dst = cv2.cornerHarris(gray, 2, 3, 0.04)
         # result is dilated for marking the corners, not important
         dst = cv2.dilate(dst, None)
-        # Threshold for an optimal value, it may vary depending on the image.
-        image[dst > 0.02 * dst.max()] = 0
-        return image
+        dst = dst > 0.02 * dst.max()
 
-    def cal_k(self,p1, p2):
+        blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
+        # Threshold for an optimal value, it may vary depending on the image.
+        for i in range(image.shape[0]):
+            for j in range(image.shape[1]):
+                if dst[i][j]:
+                    contour.append([i, j])
+                    blank_image[i][j] = 255
+
+        return blank_image, contour
+
+    def cal_k(self, p1, p2):
         return abs((p1[1] - p2[1]) / (p1[0] - p2[0] + 1e-5))
 
-
-    def cal_distance(self,p1, p2):
+    def cal_distance(self, p1, p2):
         return math.sqrt(math.pow((p2[0] - p1[0]), 2) + math.pow((p2[1] - p1[1]), 2))
 
-
-    def reSize(self,image, out_height, out_width):
+    def reSize(self, image, out_height, out_width):
         height_input, width_input = image.shape[:2]
         out_image = np.copy(image)
         delta_row, delta_col = abs(int(out_height - height_input)), abs(int(out_width - width_input))
@@ -272,10 +433,11 @@ class Font(object):
                             else:
                                 dp[h][w] = (
                                     np.argmin([dp[h - 1][w - 1][1], dp[h - 1][w][1],
-                                               dp[h - 1][w + 1][1]]) + w - 1, energy_map[h][w] + min(dp[h - 1][w - 1][1],
-                                                                                                     dp[h - 1][w][1],
-                                                                                                     dp[h - 1][w + 1][1]
-                                                                                                     ))
+                                               dp[h - 1][w + 1][1]]) + w - 1,
+                                    energy_map[h][w] + min(dp[h - 1][w - 1][1],
+                                                           dp[h - 1][w][1],
+                                                           dp[h - 1][w + 1][1]
+                                                           ))
 
                     backtrace = []
                     cur = np.argmin([i[1] for i in dp[-1]])
@@ -302,7 +464,7 @@ class Font(object):
 
         return out_image
 
-    def secondTiny(self,contours, image, x0=0, y0=0):
+    def secondTiny(self, contours, image, x0=0, y0=0):
         rect_contours = []
         for item in contours:
             # cv2.boundingRect用一个最小的矩形，把找到的形状包起来
@@ -318,7 +480,7 @@ class Font(object):
             rect_contours.append(center_point)
         return rect_contours, image
 
-    def jiaoGetSkeleton(self,image):
+    def jiaoGetSkeleton(self, image, skimage):
         # Applies a skeletonization algorithm, thus, transforming all the strokes inside the sketch into one pixel width lines
         # threshold = threshold_image(image)
         # image = cv2.GaussianBlur(image, (3, 3), 0)
@@ -326,30 +488,27 @@ class Font(object):
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
         eroded = cv2.erode(image, kernel)
         # cv2.imshow("123",eroded)
-        contour = self.findContours(eroded,0,100)
+        contour = self.findContours(eroded, 0, 100)
         contour, image = self.secondTiny(contour, blank_image)
         cv2.imshow("imgg", image)
-        return contour
+        for i in contour:
+            skimage[i[1] - 1:i[1] + 1, i[0] - 1:i[0] + 1] = 0
+            # skimage[i[1] - 2, i[0] - 2] = 0
+            # skimage[i[1] + 2, i[0] + 2] = 0
+            # skimage[i[1] - 2, i[0] + 2] = 0
+            # skimage[i[1] + 2, i[0] - 2] = 0
+        return skimage, contour
 
-    def jiaodain(self,image):
-        contour = []
-        gray = np.float32(image)
-        dst = cv2.cornerHarris(gray, 2, 3, 0.04)
-        # result is dilated for marking the corners, not important
-        dst = cv2.dilate(dst, None)
-        dst = dst > 0.02 * dst.max()
-
+    def denoe(self, image, contours):
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
-        # Threshold for an optimal value, it may vary depending on the image.
-        for i in range(image.shape[0]):
-            for j in range(image.shape[1]):
-                if dst[i][j]:
-                    contour.append([i, j])
-                    blank_image[i][j] = 255
-
-        return blank_image, contour
-
-
+        # sum_int=0
+        new_contours = []
+        for contour in contours:
+            image_neighbour = image[contour[1]:contour[3], contour[0]:contour[2]].copy()
+            if np.sum(image_neighbour) >= 255:
+                # print(np.sum(image_neighbour))
+                new_contours.append(contour)
+        return new_contours
 
     def demo(self):
         print("第%s个字[%s]" % (self.index + 1, self.object_name[self.index]))
@@ -379,17 +538,23 @@ class Font(object):
 
 
 if __name__ == '__main__':
-    font=Font()
+    font = Font()
     gary_img = cv2.imread("images/000003.png", 0)
     cv2.imshow("orginal", gary_img)
     # resize_img=reSize(gary_img,100,100)
-    resize_img = cv2.resize(gary_img, (100, 100))
+    resize_img = cv2.resize(gary_img, (150, 150))
     cv2.imshow("resize", resize_img)
     skeleton_img = font.getSkeleton(resize_img)
     cv2.imshow("skeleton", skeleton_img)
-    sorted_contour = font.strokeSplit(skeleton_img)
+    img1, contour = font.jiaodian(skeleton_img)
+    cv2.imshow("ogjiaodian", img1)
+    # sorted_contour = font.strokeSplit(skeleton_img)
+    jiaodian_img, sort_contour = font.jiaoGetSkeleton(img1, skeleton_img)
     # jiaodian_img=jiaodian(skeleton_img)
-    # cv2.imshow("jiaodian",jiaodian_img)
+    cv2.imshow("opjiaodian", jiaodian_img)
     # print(jiaodian_img)
-    font.strokeGet(sorted_contour, skeleton_img)
+
+    sorted_contour = font.strokeSplit(jiaodian_img)
+    font.strokeGet2(sorted_contour, sort_contour, jiaodian_img)
+    # font.denoe(jiaodian_img,sorted_contour)
     cv2.waitKey(0)
