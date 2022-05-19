@@ -38,55 +38,6 @@ class Font(object):
         ret, threshold = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return threshold
 
-    # def eight(image):
-    #     def get_8count(N_P):
-    #         N_P=[1-one for one in N_P]
-    #         count=N_P[6]-N_P[6]*N_P[7]*N_P[0]
-    #         count+=N_P[0]-N_P[0]*N_P[1]*N_P[2]
-    #         count+=N_P[2]-N_P[2]*N_P[3]*N_P[4]
-    #         count+=N_P[4]-N_P[4]*N_P[5]*N_P[6]
-    #         return count
-    #
-    #     def sum_static(b_N):
-    #         sum_ = 0
-    #         for i, one in enumerate(b_N):
-    #             if one !=-1:sum_ +=1
-    #             else:
-    #                 copy = one
-    #                 b_N[i]=0
-    #             if get_8count(b_N) == 1:
-    #                 sum_ += 1
-    #                 b_N[i]=copy
-    #                 return sum_
-    #     def neighbours(p, w, image):
-    #         p_1,p1,w_1,w1=p-1,p+1,w-1,w+1
-    #         # location_xy=[[p,w_1],[p_1,w],[p_1,w],]
-    #         location_xy = [[p ,w_1],[p_1,w],[p_1,w],[p_1,w1],[p,w1],[p1,w1],[p1,w],[p1,w_1]]
-    #         b_N=[-1 if image[x,y]==128 else if image[x,y]==2 else 0 for x,y in location_xy]
-    #         return b_N
-    #     def hiliditch(img_src):
-    #         height,width=img_src.shape[:2];iThin=img_src.copy();th=1
-    #         while th>0:
-    #             th=0
-    #             for p in range(1,height-1):
-    #                 for w in range(1,width-1):
-    #                     [x0,x1,x2,x3,x4,x5,x6,x7]=neighbours((p,w,iThin)
-    #                     b_N=[x0,x1,x2,x3,x4,x5,x6,x7]
-    #                     func_1=iThin[p,w]==255
-    #                     func_2=1-abs(x0)+1-abs(x2)+1-abs(x4)+1-abs(x6)>=1
-    #                     func_3=sum([abs(one)for one in b_N])>=2
-    #                     func_4=get_8count(b_N)==1
-    #                     func_5=sum([1 if one ==1 else 0 for one in b_N])>1
-    #                     func_6=sum_static(b_N)==8
-    #                     if func_1 and func_2 and func_3 and func_4 and func_5 and func_6:
-    #                         iThin[h,w]=128;th=1;
-    #                 for h in range(1,height-1):
-    #                     for w in range(1,width-1):
-    #                         if iThin[p,w]==128:iThin[p,w]=0
-    #             return iThin
-    #     def denoising(image):
-    #     pass
-
     def getSkeleton(self, image):
         # Applies a skeletonization algorithm, thus, transforming all the strokes inside the sketch into one pixel width lines
         # threshold = threshold_image(image)
@@ -101,6 +52,16 @@ class Font(object):
         skeleton = img_as_ubyte(skeleton)  # 转换成8bit
         return skeleton
 
+    def draw1(self, contours, image):
+        # print(contours)
+        blank_image = image.copy()  # 做一个mask
+        for i in range(len(contours)):
+            cv2.rectangle(blank_image, (contours[i][0], contours[i][1]), (contours[i][2], contours[i][3]),
+                          255, 1)
+
+            cv2.putText(blank_image, str(i), (contours[i][0] - 10, contours[i][1] - 10), cv2.FONT_HERSHEY_COMPLEX, 0.5, 255,
+                        1)
+        return blank_image
     def draw(self, contours, image, x0=0, y0=0):
         rect_contours = []
         for item in contours:
@@ -126,13 +87,14 @@ class Font(object):
             if distance <= 10 and rect_contours[i + 1][4][0] < rect_contours[i][4][0]:
                 rect_contours[i + 1], rect_contours[i] = rect_contours[i], rect_contours[i + 1]
 
-        for i in range(len(rect_contours)):
-            cv2.rectangle(image, (rect_contours[i][0], rect_contours[i][1]), (rect_contours[i][2], rect_contours[i][3]),
-                          255, 1)
-
-            cv2.putText(image, str(i), (rect_contours[i][0], rect_contours[i][1]), cv2.FONT_HERSHEY_COMPLEX, 0.5, 255,
-                        1)
-        cv2.imshow("draw", image)
+        # for i in range(len(rect_contours)):
+        #     cv2.rectangle(image, (rect_contours[i][0], rect_contours[i][1]), (rect_contours[i][2], rect_contours[i][3]),
+        #                   255, 1)
+        #
+        #     cv2.putText(image, str(i), (rect_contours[i][0], rect_contours[i][1]), cv2.FONT_HERSHEY_COMPLEX, 0.5, 255,
+        #                 1)
+        # cv2.imshow("draw", image)
+        cv2.imshow("ordraw", self.draw1(rect_contours, image))
         return rect_contours
 
     def findContours(self, image, Min_Area=10, Max_Area=8000):
@@ -161,7 +123,7 @@ class Font(object):
         # cv2.imshow("draw",draw_image)
         return sorted_contours
 
-    def GetAngle(self,point1,point2, point3):
+    def GetAngle(self, point1, point2, point3):
         """
         计算两条线段之间的夹⾓
             :param line1:
@@ -187,7 +149,6 @@ class Font(object):
         insideAngle = insideAngle % 180
         return insideAngle
 
-
     def if_inPoly(self, polygon, Points):
         line = geometry.LineString(polygon)
         point = geometry.Point(Points)
@@ -196,34 +157,53 @@ class Font(object):
 
     def is_inPoly(self, contour, point):
         # return True if contour[1]<=point[0]<=contour[3] and contour[0]<=point[1]<=contour[2] else False
-        return True if contour[0]-1 <= point[0] <= contour[2]+1 and contour[1]-1 <= point[1] <= contour[3]+1 else False
-
+        return True if contour[0] - 1 <= point[0] <= contour[2] + 1 and contour[1] - 1 <= point[1] <= contour[
+            3] + 1 else False
+        # return True if contour[0]  <= point[0] -1 <= contour[2]  and contour[1] -1 <= point[1] <= contour[
+        #     3]  else False
+    def is_inPoly2(self, contour, point):
+        # return True if contour[1]<=point[0]<=contour[3] and contour[0]<=point[1]<=contour[2] else False
+        return True if contour[0] - 2 <= point[0] <= contour[2] + 2 and contour[1] - 2 <= point[1] <= contour[
+            3] + 2 else False
     def txt_add_point(self, px, py):
         add_point = '{},{}\n'.format(int(px), int(py))
         self.f.write(add_point)
-    def distanceArray(self,point_list1,point_list2):
-        minDistance=float('inf')
-        minPoint1,minPoint2=None,None
-        print(point_list1,point_list2)
+
+    def distanceArray(self, point_list1, point_list2):
+        minDistance = float('inf')
+        maxDistance = float('-inf')
+        minPoint1, minPoint2 = None, None
+        maxPoint1, maxPoint2 = None, None
+        # print(point_list1,point_list2)
         for i in point_list1:
             # print(i)
             for j in point_list2:
                 # if i==j:continue
-                k=self.cal_distance(i,j)
-                if minDistance>k:
-                    minPoint1,minPoint2=i,j
-                    minDistance=k
-        return minPoint1,minPoint2
-    def nextPoint(self,point_list1,point_list2):
-        if sum(point_list1[:4])>=sum(point_list2[:4]):
-            return point_list2,point_list1
-        else:return point_list1,point_list2
+                k = self.cal_distance(i, j)
+                if minDistance > k:
+                    minPoint1, minPoint2 = i, j
+                    minDistance = k
+                if maxDistance < k:
+                    maxPoint1, maxPoint2 = i, j
+                    maxDistance = k
+        return minPoint1, minPoint2, maxPoint1, maxPoint2, minDistance
+
+    def nextPoint(self, point_list1, point_list2):
+        if sum(point_list1[:4]) >= sum(point_list2[:4]):
+            return point_list2, point_list1
+        else:
+            return point_list1, point_list2
+
+    def midPoint(self, point1, point2):
+        return abs(point2[0] + point1[0]) // 2, abs(point2[1] + point2[1]) // 2
+
     def strokeGet2(self, contours, pointlist, image):
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
         # sum_int=0
         k_contours = []
-
+        print(pointlist)
         for contour in contours:
+            # print(contour)
             image_neighbour = image[contour[1]:contour[3], contour[0]:contour[2]].copy()
             visit = []
             if np.sum(image_neighbour) > 0:
@@ -232,82 +212,112 @@ class Font(object):
                     # if self.if_inPoly([(contour[0],contour[1]),(contour[0],contour[3]),
                     #                   (contour[2],contour[3]),(contour[2],contour[1])],point):
                     if self.is_inPoly(contour, point):
-                        # print(contour, point)
+                        # print("in",contour, point)
                         # print("yes")
                         # k_contours.append([contour,self.])
                         visit.append(point)
-            if len(visit)==2:
-                # self.GetAngle(visit[1],[visit[0][0]+,visit[0][1]],visit[0])
-                k_contours.append([contour,self.cal_k(visit[0],visit[1])])
+            if len(visit) == 2:
+                k_contours.append([contour, self.cal_k([0, 0], [visit[1][i]-visit[0][i] for i in range(0,len(visit[1]))])])
+            # elif len(visit)<=1:
+            #     continue
             else:
-                k_contours.append([contour,self.cal_k(visit[0], visit[1])])#暂时这样
-        k_contours.sort(key=lambda x:x[1])
+                # print(visit[0])
+                # k_contours.append([contour,self.cal_k(visit[0], visit[1])])#暂时这样
+                # k_contours.append([contour, self.cal_k([0, 0], list(set(visit[1]) - set(visit[0])))])  # 暂时这样
+                k_contours.append([contour, self.cal_k([0, 0], [visit[1][i]-visit[0][i] for i in range(0,len(visit[1]))])])  # 暂时这样
+        k_contours.sort(key=lambda x: x[1])
+        final_contours = []
         # print(k_contours)
-        final_contours=[]
-        for i in range(len(k_contours)):
-            for j in range(i,len(k_contours)):
+        i = 0
+        index_list=[i for i in range(len(k_contours))]
+        # print(index_list)
+        # for i in range(len(k_contours)):
+        # while i < len(k_contours):
+        while len(index_list)>=1:
+            # for i in range(len(k_contours)):
+            # for j in range(i+1,len(k_contours)):
+            # j = i + 1
+            i=index_list[0]
+            index_list.remove(i)
+            j = i
+            tmp = k_contours[i]
+            # print("og",i,tmp)
+            while j < len(k_contours):
+                # print(k_contours[i])
+                if tmp==k_contours[j]:
+                    j+=1
+                    continue
                 # print(self.cal_distance(k_contours[i],))
                 # print(self.cal_distance(k_contours[i],
                 #                         self.distanceArray([(k_contours[i][:2])],[(k_contours[i][2:4])])))
                 # print(k_contours[i][:2])
-                print(self.distanceArray([k_contours[i][0][:2],k_contours[i][0][2:4]],[k_contours[j][0][:2],k_contours[j][0][2:4]]))
+                # print("tmp",tmp[0],k_contours[j][0])
+                # print(self.distanceArray([k_contours[i][0][:2],k_contours[i][0][2:4]],[k_contours[j][0][:2],k_contours[j][0][2:4]])[2],abs(k_contours[i][1]-k_contours[j][1])<=k_contours[i][1]*0.10+100)
+                # print(tmp,k_contours[j])
+                minPoint1, minPoint2, maxPoint1, maxPoint2, minDistance = self.distanceArray([tmp[0][:2], tmp[0][2:4]],
+                                                                                             [k_contours[j][0][:2],
+                                                                                              k_contours[j][0][2:4]])
+                # print(minPoint1, minPoint2, maxPoint1, maxPoint2, minDistance)
+                # print(k_contours[i])
+                if minDistance <= 10 and abs(tmp[1] - k_contours[j][1]) <= tmp[1] * 0.10 + 15:
+                    # final_contours.append()
+                    # print(1)
+                    # print([i for i in maxPoint1])
+                    tmp = [[maxPoint1[0], maxPoint1[1], maxPoint2[0], maxPoint2[1],
+                            [zz for zz in self.midPoint(maxPoint1, maxPoint2)],
+                            self.cal_distance(maxPoint1, maxPoint2)],
+                           # self.cal_k([0, 0], list(set(maxPoint2) - set(maxPoint1)))]
+                           self.cal_k([0, 0], [maxPoint2[i]-maxPoint1[i] for i in range(0,len(maxPoint2))])]
+                    if j in index_list:index_list.remove(j)
+                    j += 1
+                elif minDistance <= 10 and tmp[1] >= 9999:
+                    tmp = [[maxPoint1[0], maxPoint1[1], maxPoint2[0], maxPoint2[1],
+                            [zz for zz in self.midPoint(maxPoint1, maxPoint2)],
+                            # self.cal_distance(maxPoint1, maxPoint2)], self.cal_k([0, 0], list(set(maxPoint2) - set(maxPoint1)))]
+                            self.cal_distance(maxPoint1, maxPoint2)], self.cal_k([0, 0], [maxPoint2[i]-maxPoint1[i] for i in range(0,len(maxPoint2))])]
+                    # index_list.remove(i)
+                    if j in index_list:index_list.remove(j)
+                    j += 1
+                else:
+                    j += 1
+                    # break
+            if tmp!=k_contours[i]:
+                # print(k_contours[i],k_contours[j-1])
+                final_contours.append(tmp[0])
+            else:
+                # print("jin",k_contours[i][0])
+                final_contours.append(k_contours[i][0])
+        # final_contours.sort(key=lambda x:x[5])
+        lost_contours=[]
+        print(contours)
+        print(final_contours)
+        for i in contours:
+            in_flag1=False
+            in_flag2=False
+            for j in final_contours:
+                # print("3",j[4],i[4])
+                if not self.is_inPoly2(j[:4],i[4]):
+                    in_flag1=True
+                    # lost_contours.append(i)
+                else:in_flag2=True
+            # print(in_flag1,in_flag2)
+            if in_flag1 and not in_flag2:
+                lost_contours.append(i)
+        # print("lost",lost_contours)
+        for i in lost_contours:final_contours.append(i)
+        final_contours.sort(key=lambda x: x[5])
+        return final_contours
 
-        # print(k_contours)
-            # for v in
-                    # print(len(visit))
-                # preX = preY = k = firstX = firstY = None
-                # for j in range(contour[1], contour[3]):
-                #     for i in range(contour[0], contour[2]):
-                #         if image_neighbour[j - contour[1], i - contour[0]] == 255 :
-                #             k_contours.append()
-        pass
+    def intermediates(self,p1, p2, nb_points=4):
+        """"Return a list of nb_points equally spaced points
+        between p1 and p2"""
+        # If we have 8 intermediate points, we have 8+1=9 spaces
+        # between p1 and p2
+        x_spacing = (p2[0] - p1[0]) / (nb_points + 1)
+        y_spacing = (p2[1] - p1[1]) / (nb_points + 1)
 
-        #         preX = preY = k = firstX = firstY = None
-        #         for j in range(contour[1], contour[3]):
-        #             for i in range(contour[0], contour[2]):
-        #                 if image_neighbour[j - contour[1], i - contour[0]] == 255:
-        #                     if preX is None and preY is None:
-        #                         preX, preY = i, j
-        #                         firstX, firstY = i, j
-        #                         blank_image[j, i] = 255
-        #                         image_neighbour[j - contour[1], i - contour[0]] = 0
-        #                         self.txt_add_point(0, 0)
-        #                         self.txt_add_point(i, j)
-        #                         cv2.imshow("1", blank_image)
-        #                         continue
-        #                     # print(cal_distance([preX,preY],[i,j]))
-        #                     if k is None and (preX is not None and preY is not None):
-        #                         k = self.cal_k([i - firstX, j - firstY], [0, 0])
-        #                         preX, preY = i, j
-        #                         print([i - firstX, j - firstY])
-        #                         print("原来的斜率", k)
-        #                     elif self.cal_distance([preX, preY], [i, j]) <= 5:
-        #                         # if cal_k([preX, preY], [i, j]):
-        #                         neighbourhood = image_neighbour[j - 1 - contour[1]: j + 2 - contour[1],
-        #                                         i - 1 - contour[0]: i + 2 - contour[0]]
-        #                         print("进来")
-        #                         print(neighbourhood)
-        #                         neighbours = np.argwhere(neighbourhood)
-        #                         # print(neighbours )
-        #                         print("计算的斜率", self.cal_k([preX - firstX, preY - firstY], [i - firstX, j - firstY]))
-        #                         if len(neighbours) == 1:
-        #                             image_neighbour[j - contour[1], i - contour[0]] = 0
-        #                         elif len(neighbours) >= 1 and abs(self.cal_k([preX - firstX, preY - firstY],
-        #                                                                      [i - firstX,
-        #                                                                       j - firstY]) - k) <= k * 0.10 + 1000:
-        #                             blank_image[j, i] = 255
-        #                             image_neighbour[j - contour[1], i - contour[0]] = 0
-        #                             cv2.imshow("1", blank_image)
-        #                             # cv2.waitKey(0)
-        #                             preX, preY = i, j
-        #                             self.txt_add_point(i, j)
-        #                     # neighbourhood = image[j - 1: j + 2, i - 1: i + 2]
-        #                     # neighbours = np.argwhere(neighbourhood)
-        #                     # blank_image[j,i]=255
-        #                     # cv2.imshow("1",blank_image)
-        #                     # cv2.waitKey(0)
-        # self.f.close()
-
+        return [[p1[0] + i * x_spacing, p1[1] + i * y_spacing]
+                for i in range(1, nb_points + 1)]
     def strokeGet(self, contours, image):
         # image_neighbour = image.copy()
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
@@ -315,49 +325,41 @@ class Font(object):
         for contour in contours:
             image_neighbour = image[contour[1]:contour[3], contour[0]:contour[2]].copy()
             while np.sum(image_neighbour) > 0:
-                preX = preY = k = firstX = firstY = None
+                preX = preY = None
                 for j in range(contour[1], contour[3]):
                     for i in range(contour[0], contour[2]):
                         if image_neighbour[j - contour[1], i - contour[0]] == 255:
                             if preX is None and preY is None:
                                 preX, preY = i, j
-                                firstX, firstY = i, j
                                 blank_image[j, i] = 255
                                 image_neighbour[j - contour[1], i - contour[0]] = 0
                                 self.txt_add_point(0, 0)
                                 self.txt_add_point(i, j)
                                 cv2.imshow("1", blank_image)
                                 continue
-                            # print(cal_distance([preX,preY],[i,j]))
-                            if k is None and (preX is not None and preY is not None):
-                                k = self.cal_k([i - firstX, j - firstY], [0, 0])
-                                preX, preY = i, j
-                                print([i - firstX, j - firstY])
-                                print("原来的斜率", k)
-                            elif self.cal_distance([preX, preY], [i, j]) <= 5:
-                                # if cal_k([preX, preY], [i, j]):
+                            tmp_dis=self.cal_distance([preX, preY], [i, j])
+                            if tmp_dis <= 5:
+                                if tmp_dis>=2:
+                                    for bu in self.intermediates([preX,preY],[i,j]):
+                                        blank_image[int(bu[1]), int(bu[0])] = 255
+                                        # image_neighbour[ - contour[1], i - contour[0]] = 0
+                                        cv2.imshow("1", blank_image)
+                                        preX, preY = int(bu[0]), int(bu[1])
+                                        self.txt_add_point(int(bu[0]), int(bu[1]))
+
                                 neighbourhood = image_neighbour[j - 1 - contour[1]: j + 2 - contour[1],
                                                 i - 1 - contour[0]: i + 2 - contour[0]]
-                                print("进来")
-                                print(neighbourhood)
                                 neighbours = np.argwhere(neighbourhood)
-                                # print(neighbours )
-                                print("计算的斜率", self.cal_k([preX - firstX, preY - firstY], [i - firstX, j - firstY]))
                                 if len(neighbours) == 1:
                                     image_neighbour[j - contour[1], i - contour[0]] = 0
-                                elif len(neighbours) >= 1 and abs(self.cal_k([preX - firstX, preY - firstY],
-                                                                             [i - firstX,
-                                                                              j - firstY]) - k) <= k * 0.10 + 1000:
+                                else:
                                     blank_image[j, i] = 255
                                     image_neighbour[j - contour[1], i - contour[0]] = 0
                                     cv2.imshow("1", blank_image)
-                                    # cv2.waitKey(0)
                                     preX, preY = i, j
                                     self.txt_add_point(i, j)
-                            # neighbourhood = image[j - 1: j + 2, i - 1: i + 2]
-                            # neighbours = np.argwhere(neighbourhood)
-                            # blank_image[j,i]=255
-                            # cv2.imshow("1",blank_image)
+
+
                             # cv2.waitKey(0)
         self.f.close()
 
@@ -520,26 +522,11 @@ class Font(object):
             if k == ord('q'):
                 self.f.close()
                 break
-            # if (k == ord('c')) and (self.start):
-            #     print("开始采集")
-            #     self.collect()
-            #     print("采集结束")
-            # if k == ord('n'):
-            #     self.f.close()
-            #     self.start = True
-            #     if (self.index < len(self.object_name) - 1):
-            #         self.index += 1
-            #         self.next_write()
-            #
-            #         print("下一个字[%s]" % self.object_name[self.index])
-            #     else:
-            #         print("没字了")
-            #         break
 
 
 if __name__ == '__main__':
     font = Font()
-    gary_img = cv2.imread("images/000003.png", 0)
+    gary_img = cv2.imread("images/wo.png", 0)
     cv2.imshow("orginal", gary_img)
     # resize_img=reSize(gary_img,100,100)
     resize_img = cv2.resize(gary_img, (150, 150))
@@ -555,6 +542,11 @@ if __name__ == '__main__':
     # print(jiaodian_img)
 
     sorted_contour = font.strokeSplit(jiaodian_img)
-    font.strokeGet2(sorted_contour, sort_contour, jiaodian_img)
+    # print(sorted_contour)
+    final_contour = font.strokeGet2(sorted_contour, sort_contour, jiaodian_img)
+    print(final_contour)
+    cv2.imshow("opdraw", font.draw1(final_contour, skeleton_img))
+    # cv2.imshow("o", skeleton_img)
     # font.denoe(jiaodian_img,sorted_contour)
+    font.strokeGet(final_contour,skeleton_img)
     cv2.waitKey(0)

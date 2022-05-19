@@ -11,8 +11,8 @@ class Recurrent:
         self.object_type = ".txt"
         self.findname_len = len(filename)
         self.index = 0
-        self.width = 100
-        self.height = 100
+        self.width = 150
+        self.height = 150
         self.channles = 1
         self.img = np.zeros((self.width, self.height, self.channles), np.uint8)
         self.f = open(self.save_txt_dir + self.findname[self.index] + self.object_type, "r")
@@ -27,7 +27,7 @@ class Recurrent:
                     cv2.circle(self.img, (int(x), int(y)), 1, (0), 5, cv2.LINE_AA, 0)
                     # cv2.line(self.img, (int(x), int(y)), 1, (0), 5, cv2.LINE_AA, 0)
                     cv2.imshow("write", self.img)
-                    cv2.waitKey(50)
+                    cv2.waitKey(10)
             # print(line, end = '')  # 后面跟 ',' 将忽略换行符
             # print(line, end = '')　      # 在 Python 3 中使用
             line = self.f.readline()
