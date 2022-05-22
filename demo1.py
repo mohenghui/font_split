@@ -157,8 +157,8 @@ class Font(object):
 
     def is_inPoly(self, contour, point):
         # return True if contour[1]<=point[0]<=contour[3] and contour[0]<=point[1]<=contour[2] else False
-        return True if contour[0] - 1 <= point[0] <= contour[2] + 1 and contour[1] - 1 <= point[1] <= contour[
-            3] + 1 else False
+        return True if contour[0] - 2 <= point[0] <= contour[2] + 2 and contour[1] - 2 <= point[1] <= contour[
+            3] + 2 else False
         # return True if contour[0]  <= point[0] -1 <= contour[2]  and contour[1] -1 <= point[1] <= contour[
         #     3]  else False
     def is_inPoly2(self, contour, point):
@@ -201,6 +201,7 @@ class Font(object):
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
         # sum_int=0
         k_contours = []
+        print(contours)
         print(pointlist)
         for contour in contours:
             # print(contour)
@@ -227,7 +228,7 @@ class Font(object):
                 k_contours.append([contour, self.cal_k([0, 0], [visit[1][i]-visit[0][i] for i in range(0,len(visit[1]))])])  # 暂时这样
         k_contours.sort(key=lambda x: x[1])
         final_contours = []
-        # print(k_contours)
+        print(k_contours)
         i = 0
         index_list=[i for i in range(len(k_contours))]
         # print(index_list)
@@ -259,7 +260,7 @@ class Font(object):
                                                                                               k_contours[j][0][2:4]])
                 # print(minPoint1, minPoint2, maxPoint1, maxPoint2, minDistance)
                 # print(k_contours[i])
-                if minDistance <= 10 and abs(tmp[1] - k_contours[j][1]) <= tmp[1] * 0.10 + 15:
+                if minDistance <= 10 and abs(tmp[1] - k_contours[j][1]) <= tmp[1] * 0.10 + 15 and sum(tmp[0][:2])<sum(k_contours[j][0][:2]):
                     # final_contours.append()
                     # print(1)
                     # print([i for i in maxPoint1])
@@ -270,7 +271,7 @@ class Font(object):
                            self.cal_k([0, 0], [maxPoint2[i]-maxPoint1[i] for i in range(0,len(maxPoint2))])]
                     if j in index_list:index_list.remove(j)
                     j += 1
-                elif minDistance <= 10 and tmp[1] >= 9999:
+                elif minDistance <= 10 and tmp[1] >= 9999 and sum(tmp[0][:2])<sum(k_contours[j][0][:2]):
                     tmp = [[maxPoint1[0], maxPoint1[1], maxPoint2[0], maxPoint2[1],
                             [zz for zz in self.midPoint(maxPoint1, maxPoint2)],
                             # self.cal_distance(maxPoint1, maxPoint2)], self.cal_k([0, 0], list(set(maxPoint2) - set(maxPoint1)))]
@@ -283,14 +284,17 @@ class Font(object):
                     # break
             if tmp!=k_contours[i]:
                 # print(k_contours[i],k_contours[j-1])
-                final_contours.append(tmp[0])
+                in_tmp=[tmp_i for tmp_i in tmp[0]]
+                in_tmp.append(tmp[1])
+                final_contours.append(in_tmp)
             else:
-                # print("jin",k_contours[i][0])
-                final_contours.append(k_contours[i][0])
+                in_tmp=[tmp_i for tmp_i in k_contours[i][0]]
+                in_tmp.append(k_contours[i][1])
+                final_contours.append(in_tmp)
         # final_contours.sort(key=lambda x:x[5])
         lost_contours=[]
-        print(contours)
-        print(final_contours)
+        # print(contours)
+        # print(final_contours)
         for i in contours:
             in_flag1=False
             in_flag2=False
@@ -302,10 +306,13 @@ class Font(object):
                 else:in_flag2=True
             # print(in_flag1,in_flag2)
             if in_flag1 and not in_flag2:
-                lost_contours.append(i)
+                in_tmp=i
+                in_tmp.append(self.cal_k([0, 0], [i[2]-i[0],i[3]-i[1]]))
+                lost_contours.append(in_tmp)
         # print("lost",lost_contours)
         for i in lost_contours:final_contours.append(i)
         final_contours.sort(key=lambda x: x[5])
+        # print(final_contours)
         return final_contours
 
     def intermediates(self,p1, p2, nb_points=4):
@@ -322,6 +329,8 @@ class Font(object):
         # image_neighbour = image.copy()
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
         # sum_int=0
+        print(contours)
+        # print(len(contours))
         for contour in contours:
             image_neighbour = image[contour[1]:contour[3], contour[0]:contour[2]].copy()
             while np.sum(image_neighbour) > 0:
@@ -370,7 +379,7 @@ class Font(object):
         # result is dilated for marking the corners, not important
         dst = cv2.dilate(dst, None)
         dst = dst > 0.02 * dst.max()
-
+        # dst = cv2.goodFeaturesToTrack(gray, 80, 0.05, 10)
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
         # Threshold for an optimal value, it may vary depending on the image.
         for i in range(image.shape[0]):
@@ -378,7 +387,10 @@ class Font(object):
                 if dst[i][j]:
                     contour.append([i, j])
                     blank_image[i][j] = 255
-
+        # dst = (dst.astype(int)).tolist()
+        # for z in dst:
+        #     contour.append([z[0][0],z[0][1]])
+        #     blank_image[z[0][1]][z[0][0]]=255
         return blank_image, contour
 
     def cal_k(self, p1, p2):
@@ -488,9 +500,9 @@ class Font(object):
         # image = cv2.GaussianBlur(image, (3, 3), 0)
         blank_image = np.zeros(image.shape, np.uint8)  # 做一个mask
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        eroded = cv2.erode(image, kernel)
+        image = cv2.erode(image, kernel)
         # cv2.imshow("123",eroded)
-        contour = self.findContours(eroded, 0, 100)
+        contour = self.findContours(image, 0, 100)
         contour, image = self.secondTiny(contour, blank_image)
         cv2.imshow("imgg", image)
         for i in contour:
@@ -526,7 +538,7 @@ class Font(object):
 
 if __name__ == '__main__':
     font = Font()
-    gary_img = cv2.imread("images/wo.png", 0)
+    gary_img = cv2.imread("images/000003.png", 0)
     cv2.imshow("orginal", gary_img)
     # resize_img=reSize(gary_img,100,100)
     resize_img = cv2.resize(gary_img, (150, 150))
@@ -544,7 +556,7 @@ if __name__ == '__main__':
     sorted_contour = font.strokeSplit(jiaodian_img)
     # print(sorted_contour)
     final_contour = font.strokeGet2(sorted_contour, sort_contour, jiaodian_img)
-    print(final_contour)
+    # print(final_contour)
     cv2.imshow("opdraw", font.draw1(final_contour, skeleton_img))
     # cv2.imshow("o", skeleton_img)
     # font.denoe(jiaodian_img,sorted_contour)
